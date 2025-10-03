@@ -369,7 +369,7 @@ public class BlockEventHandler implements Listener {
         else if (!this.TRASH_BLOCKS.contains(block.getType()) && GriefPrevention.instance.claimsEnabledForWorld(block.getWorld())) {
             if (!playerData.warnedAboutBuildingOutsideClaims && !player.hasPermission("griefprevention.adminclaims")
                     && player.hasPermission("griefprevention.createclaims") && ((playerData.lastClaim == null
-                    && playerData.getClaims().size() == 0) || (playerData.lastClaim != null
+                    && playerData.getClaims().isEmpty()) || (playerData.lastClaim != null
                     && playerData.lastClaim.isNear(player.getLocation(), 15)))) {
                 Long now = null;
                 if (playerData.buildWarningTimestamp == null || (now = System.currentTimeMillis()) - playerData.buildWarningTimestamp > 600000)  //10 minute cooldown
@@ -420,10 +420,10 @@ public class BlockEventHandler implements Listener {
             claimOwner = claim.getOwnerID();
 
         // Check for double chests placed just outside the claim boundary
-        if (block.getBlockData() instanceof Chest) {
+        if (block.getBlockData() instanceof Chest chest) {
             for (BlockFace face : HORIZONTAL_DIRECTIONS) {
                 Block relative = block.getRelative(face);
-                if (!(relative.getBlockData() instanceof Chest)) continue;
+                if (!(relative.getBlockData() instanceof Chest relativeChest)) continue;
 
                 Claim relativeClaim = this.dataStore.getClaimAt(relative.getLocation(), false, claim);
                 UUID relativeClaimOwner = relativeClaim == null ? null : relativeClaim.getOwnerID();
@@ -433,11 +433,9 @@ public class BlockEventHandler implements Listener {
                 if (Objects.equals(claimOwner, relativeClaimOwner)) break;
 
                 // Change both chests to singular chests
-                Chest chest = (Chest) block.getBlockData();
                 chest.setType(Chest.Type.SINGLE);
                 block.setBlockData(chest);
 
-                Chest relativeChest = (Chest) relative.getBlockData();
                 relativeChest.setType(Chest.Type.SINGLE);
                 relative.setBlockData(relativeChest);
 
@@ -1064,8 +1062,7 @@ public class BlockEventHandler implements Listener {
         //from where?
         Block fromBlock = dispenseEvent.getBlock();
         BlockData fromData = fromBlock.getBlockData();
-        if (!(fromData instanceof Dispenser)) return;
-        Dispenser dispenser = (Dispenser) fromData;
+        if (!(fromData instanceof Dispenser dispenser)) return;
 
         //to where?
         Block toBlock = fromBlock.getRelative(dispenser.getFacing());

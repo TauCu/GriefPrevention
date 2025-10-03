@@ -291,7 +291,7 @@ public class GriefPrevention extends JavaPlugin
         AddLogEntry("Finished loading configuration.");
 
         //when datastore initializes, it loads player and claim data, and posts some stats to the log
-        if (this.databaseUrl.length() > 0)
+        if (!this.databaseUrl.isEmpty())
         {
             try
             {
@@ -525,7 +525,7 @@ public class GriefPrevention extends JavaPlugin
             //then default to survival mode for safety's sake (to protect any admin claims which may 
             //have been created there)
             if (this.config_claims_worldModes.get(world) == ClaimsMode.Disabled &&
-                    deprecated_claimsEnabledWorldNames.size() > 0)
+                    !deprecated_claimsEnabledWorldNames.isEmpty())
             {
                 this.config_claims_worldModes.put(world, ClaimsMode.Survival);
             }
@@ -1315,7 +1315,7 @@ public class GriefPrevention extends JavaPlugin
             StringBuilder permissions = new StringBuilder();
             permissions.append(ChatColor.GOLD).append('>');
 
-            if (managers.size() > 0)
+            if (!managers.isEmpty())
             {
                 for (String manager : managers)
                     permissions.append(this.trustEntryToPlayerName(manager)).append(' ');
@@ -1325,7 +1325,7 @@ public class GriefPrevention extends JavaPlugin
             permissions = new StringBuilder();
             permissions.append(ChatColor.YELLOW).append('>');
 
-            if (builders.size() > 0)
+            if (!builders.isEmpty())
             {
                 for (String builder : builders)
                     permissions.append(this.trustEntryToPlayerName(builder)).append(' ');
@@ -1335,7 +1335,7 @@ public class GriefPrevention extends JavaPlugin
             permissions = new StringBuilder();
             permissions.append(ChatColor.GREEN).append('>');
 
-            if (containers.size() > 0)
+            if (!containers.isEmpty())
             {
                 for (String container : containers)
                     permissions.append(this.trustEntryToPlayerName(container)).append(' ');
@@ -1345,7 +1345,7 @@ public class GriefPrevention extends JavaPlugin
             permissions = new StringBuilder();
             permissions.append(ChatColor.BLUE).append('>');
 
-            if (accessors.size() > 0)
+            if (!accessors.isEmpty())
             {
                 for (String accessor : accessors)
                     permissions.append(this.trustEntryToPlayerName(accessor)).append(' ');
@@ -1833,7 +1833,7 @@ public class GriefPrevention extends JavaPlugin
             //requires exactly one parameter, the other player's name
             if (args.length != 1) return false;
 
-            this.handleTrustCommand(player, null, args[0]);  //null indicates permissiontrust to the helper method
+            this.handleTrustCommand(player, ClaimPermission.Manage, args[0]);
 
             return true;
         }
@@ -1954,7 +1954,7 @@ public class GriefPrevention extends JavaPlugin
                 if (!claim.isAdminClaim() || player.hasPermission("griefprevention.adminclaims"))
                 {
                     PlayerData playerData = this.dataStore.getPlayerData(player.getUniqueId());
-                    if (claim.children.size() > 0 && !playerData.warnedAboutMajorDeletion)
+                    if (!claim.children.isEmpty() && !playerData.warnedAboutMajorDeletion)
                     {
                         GriefPrevention.sendMessage(player, TextMode.Warn, Messages.DeletionSubdivisionWarning);
                         playerData.warnedAboutMajorDeletion = true;
@@ -2160,7 +2160,7 @@ public class GriefPrevention extends JavaPlugin
                     claimBlocksFormat.format(playerData.getAccruedClaimBlocks()),
                     claimBlocksFormat.format((playerData.getBonusClaimBlocks() + this.dataStore.getGroupBonusBlocks(otherPlayer.getUniqueId()))),
                     claimBlocksFormat.format((playerData.getAccruedClaimBlocks() + playerData.getBonusClaimBlocks() + this.dataStore.getGroupBonusBlocks(otherPlayer.getUniqueId()))));
-            if (claims.size() > 0)
+            if (!claims.isEmpty())
             {
                 GriefPrevention.sendMessage(player, TextMode.Instr, Messages.ClaimsListHeader);
                 for (int i = 0; i < playerData.getClaims().size(); i++)
@@ -2191,7 +2191,7 @@ public class GriefPrevention extends JavaPlugin
                     claims.add(claim);
                 }
             }
-            if (claims.size() > 0)
+            if (!claims.isEmpty())
             {
                 GriefPrevention.sendMessage(player, TextMode.Instr, Messages.ClaimsListHeader);
                 for (Claim claim : claims)
@@ -2330,7 +2330,7 @@ public class GriefPrevention extends JavaPlugin
             }
 
             GriefPrevention.sendMessage(player, TextMode.Success, Messages.AdjustBlocksAllSuccess, claimBlocksFormat.format(adjustment));
-            GriefPrevention.AddLogEntry("Adjusted all " + players.size() + "players' bonus claim blocks by " + adjustment + ".  " + builder.toString(), CustomLogEntryTypes.AdminActivity);
+            GriefPrevention.AddLogEntry("Adjusted all " + players.size() + "players' bonus claim blocks by " + adjustment + ".  " + builder, CustomLogEntryTypes.AdminActivity);
 
             return true;
         }
@@ -2676,7 +2676,7 @@ public class GriefPrevention extends JavaPlugin
         }
 
         //warn if has children and we're not explicitly deleting a top level claim
-        else if (claim.children.size() > 0 && !deleteTopLevelClaim)
+        else if (!claim.children.isEmpty() && !deleteTopLevelClaim)
         {
             GriefPrevention.sendMessage(player, TextMode.Instr, Messages.DeleteTopLevelClaim);
             return true;
@@ -2767,37 +2767,11 @@ public class GriefPrevention extends JavaPlugin
                 return;
             }
 
-            //see if the player has the level of permission he's trying to grant
-            Supplier<String> errorMessage;
-
-            //permission level null indicates granting permission trust
-            if (permissionLevel == null)
-            {
-                errorMessage = claim.checkPermission(player, ClaimPermission.Edit, null);
-                if (errorMessage != null)
-                {
-                    errorMessage = () -> "Only " + claim.getOwnerName() + " can grant /PermissionTrust here.";
-                }
-            }
-
-            //otherwise just use the ClaimPermission enum values
-            else
-            {
-                errorMessage = claim.checkPermission(player, permissionLevel, null);
-            }
-
-            //error message for trying to grant a permission the player doesn't have
-            if (errorMessage != null)
-            {
-                GriefPrevention.sendMessage(player, TextMode.Err, Messages.CantGrantThatPermission);
-                return;
-            }
-
             targetClaims.add(claim);
         }
 
         //if we didn't determine which claims to modify, tell the player to be specific
-        if (targetClaims.size() == 0)
+        if (targetClaims.isEmpty())
         {
             GriefPrevention.sendMessage(player, TextMode.Err, Messages.GrantPermissionNoClaim);
             return;
@@ -3458,7 +3432,7 @@ public class GriefPrevention extends JavaPlugin
                 player.getStatistic(Statistic.PICKUP, Material.DARK_OAK_LOG) > 0) return false;
 
         PlayerData playerData = instance.dataStore.getPlayerData(player.getUniqueId());
-        if (playerData.getClaims().size() > 0) return false;
+        if (!playerData.getClaims().isEmpty()) return false;
 
         return true;
     }

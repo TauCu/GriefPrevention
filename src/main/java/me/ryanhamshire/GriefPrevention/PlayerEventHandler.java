@@ -716,7 +716,7 @@ class PlayerEventHandler implements Listener
                 {
                     if (player.getPortalCooldown() > 8 && player.hasMetadata("GP_PORTALRESCUE"))
                     {
-                        GriefPrevention.AddLogEntry("Rescued " + player.getName() + " from a nether portal.\nTeleported from " + player.getLocation().toString() + " to " + ((Location) player.getMetadata("GP_PORTALRESCUE").get(0).value()).toString(), CustomLogEntryTypes.Debug);
+                        GriefPrevention.AddLogEntry("Rescued " + player.getName() + " from a nether portal.\nTeleported from " + GriefPrevention.getfriendlyLocationString(player.getLocation()) + " to " + GriefPrevention.getfriendlyLocationString((Location) player.getMetadata("GP_PORTALRESCUE").get(0).value()), CustomLogEntryTypes.Debug);
                         player.teleport((Location) player.getMetadata("GP_PORTALRESCUE").get(0).value());
                         player.removeMetadata("GP_PORTALRESCUE", instance);
                     }
@@ -1105,9 +1105,8 @@ class PlayerEventHandler implements Listener
             {
                 //ensure this entity can be tamed by players
                 tameable.setOwner(null);
-                if (tameable instanceof InventoryHolder)
+                if (tameable instanceof InventoryHolder holder)
                 {
-                    InventoryHolder holder = (InventoryHolder) tameable;
                     holder.getInventory().clear();
                 }
             }
@@ -1209,7 +1208,7 @@ class PlayerEventHandler implements Listener
             //don't track in worlds where claims are not enabled
             if (!instance.claimsEnabledForWorld(entity.getWorld())) return;
 
-            Claim cachedClaim = playerData.lastClaim;;
+            Claim cachedClaim = playerData.lastClaim;
             Claim claim = this.dataStore.getClaimAt(entity.getLocation(), false, cachedClaim);
 
             // Require a claim to handle.
@@ -2300,8 +2299,7 @@ class PlayerEventHandler implements Listener
         Boolean cachedValue = this.inventoryHolderCache.get(cacheKey);
         if (cachedValue != null)
         {
-            return cachedValue.booleanValue();
-
+            return cachedValue;
         }
         else
         {
