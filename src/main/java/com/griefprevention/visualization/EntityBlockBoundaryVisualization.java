@@ -1,7 +1,6 @@
 package com.griefprevention.visualization;
 
 import com.griefprevention.util.IntVector;
-import me.ryanhamshire.GriefPrevention.PlayerData;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -12,36 +11,39 @@ import java.util.Collections;
 import java.util.HashMap;
 
 /**
- * @author <a href="https://github.com/TauCubed">TauCubed</a>
+ * @author <a href="https://github.com/TauCu">TauCubed</a>
  */
 public abstract class EntityBlockBoundaryVisualization<T extends FakeEntityElement> extends BlockBoundaryVisualization {
 
     protected HashMap<IntVector, T> entityElements = new HashMap<>(32);
 
-    public EntityBlockBoundaryVisualization(@NotNull World world, @NotNull IntVector visualizeFrom, int height) {
-        this(world, visualizeFrom, height, 10, 128);
+    public EntityBlockBoundaryVisualization(@NotNull Player player, @NotNull IntVector visualizeFrom, int height) {
+        this(player, visualizeFrom, height, 10, 128);
     }
 
-    public EntityBlockBoundaryVisualization(World world, IntVector visualizeFrom, int height, int step, int displayZoneRadius) {
-        super(world, visualizeFrom, height, step, displayZoneRadius);
+    public EntityBlockBoundaryVisualization(Player player, IntVector visualizeFrom, int height, int step, int displayZoneRadius) {
+        super(player, visualizeFrom, height, step, displayZoneRadius);
     }
 
     @Override
-    protected void apply(@NotNull Player player, @NotNull PlayerData playerData) {
-        super.apply(player, playerData);
+    protected void apply() {
+        super.apply();
         // Apply all visualization elements.
-        for (T element : entityElements.values()) element.draw(player, world);
+        for (T element : entityElements.values())
+            element.draw();
     }
 
     public T elementByEID(int entityId) {
         for (T element : entityElements.values()) {
-            if (element.entityId() == entityId) return element;
+            if (element.entityId() == entityId)
+                return element;
         }
         return null;
     }
 
     public T elementByLocation(Location where) {
-        if (getWorld() != where.getWorld()) return null;
+        if (getWorld() != where.getWorld())
+            return null;
         return entityElements.get(new IntVector(where));
     }
 
@@ -54,8 +56,8 @@ public abstract class EntityBlockBoundaryVisualization<T extends FakeEntityEleme
     }
 
     @Override
-    protected void erase(@NotNull Player player, @NotNull Boundary boundary) {
-        revert(player);
+    protected void erase(@NotNull Boundary boundary) {
+        revert();
     }
 
 }

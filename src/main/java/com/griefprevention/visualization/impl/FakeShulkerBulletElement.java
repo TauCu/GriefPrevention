@@ -3,27 +3,36 @@ package com.griefprevention.visualization.impl;
 import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.events.PacketContainer;
+import com.comphenix.protocol.wrappers.WrappedDataValue;
+import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import com.griefprevention.util.IntVector;
 import com.griefprevention.visualization.FakeEntityElement;
-import me.ryanhamshire.GriefPrevention.util.DataWatchers;
+import me.ryanhamshire.GriefPrevention.util.ProtocolUtil;
+import me.ryanhamshire.GriefPrevention.util.UUIDUtil;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.Team;
 
+import java.lang.reflect.Type;
 import java.util.*;
 
 public class FakeShulkerBulletElement extends FakeEntityElement {
 
+    public static final WrappedDataValue DATA_GLOWING = new WrappedDataValue(0, WrappedDataWatcher.Registry.get((Type) Byte.class), (byte) 0x40); // status: set glowing
+    public static final WrappedDataValue DATA_NO_GRAVITY = new WrappedDataValue(5, WrappedDataWatcher.Registry.get((Type) Boolean.class), true); // noGravity: true
+
     private String teamName;
 
-    public FakeShulkerBulletElement(IntVector vector, Team teamColor) {
-        super(vector);
+    public FakeShulkerBulletElement(Player player, IntVector vector, Team teamColor) {
+        super(player, vector);
         this.teamName = teamColor.getName();
     }
 
     @Override
-    protected void draw() {
+    protected void onDraw() {
         IntVector pos = getCoordinate();
+        this.entityId = ProtocolUtil.nextEntityId();
+        this.entityUid = UUIDUtil.fastRandomUUID();
 
         // spawn shulker bullet
         PacketContainer addEntity = new PacketContainer(PacketType.Play.Server.SPAWN_ENTITY);
@@ -38,7 +47,7 @@ public class FakeShulkerBulletElement extends FakeEntityElement {
         // make the bullet glow and have no gravity
         PacketContainer entityMeta = new PacketContainer(PacketType.Play.Server.ENTITY_METADATA);
         entityMeta.getIntegers().write(0, entityId); // the target entityId
-        entityMeta.getDataValueCollectionModifier().write(0, List.of(DataWatchers.NO_GRAVITY, DataWatchers.GLOWING)); // make it have no gravity and glow
+        entityMeta.getDataValueCollectionModifier().write(0, List.of(DATA_NO_GRAVITY, DATA_GLOWING)); // make it have no gravity and glow
 
         // add the bullet to the scoreboard team to give color to the glow effect
         PacketContainer addToTeam = new PacketContainer(PacketType.Play.Server.SCOREBOARD_TEAM);

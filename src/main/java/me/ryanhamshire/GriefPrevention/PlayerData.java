@@ -18,14 +18,16 @@
 
 package me.ryanhamshire.GriefPrevention;
 
+import com.griefprevention.visualization.Boundary;
 import com.griefprevention.visualization.BoundaryVisualization;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.jetbrains.annotations.Nullable;
 
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.Calendar;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
@@ -128,6 +130,9 @@ public class PlayerData
 
     //profanity warning, once per play session
     boolean profanityWarned = false;
+
+    //the next time a player is allowed to inspect (visualize) a claim
+    Instant nextInspectionTime;
 
     //whether or not this player is "in" pvp combat
     public boolean inPvpCombat()
@@ -377,10 +382,40 @@ public class PlayerData
     public void setVisibleBoundaries(@Nullable BoundaryVisualization visibleBoundaries)
     {
         if (this.visibleBoundaries != null) {
-            this.visibleBoundaries.revert(Bukkit.getPlayer(playerID));
+            this.visibleBoundaries.revert();
         }
 
         this.visibleBoundaries = visibleBoundaries;
+    }
+
+    public boolean isVisualizing(Claim claim) {
+        if (getVisibleBoundaries() == null)
+            return false;
+        return getVisibleBoundaries().getBoundaries().stream().anyMatch(b -> Objects.equals(claim, b.claim()));
+    }
+
+    public boolean isVisualizing(Boundary boundary) {
+        if (getVisibleBoundaries() == null)
+            return false;
+        return getVisibleBoundaries().getBoundaries().stream().anyMatch(b -> Objects.equals(boundary, b));
+    }
+
+    public boolean checkInspectionCooldown() {
+        return nextInspectionTime == null || Instant.now().isAfter(nextInspectionTime);
+    }
+
+    public boolean updateInspectionCooldown() {
+        return updateInspectionCooldown(200);
+    }
+
+    public boolean updateInspectionCooldown(long cooldownMillis) {
+        Instant now = Instant.now();
+        if (nextInspectionTime == null || now.isAfter(nextInspectionTime)) {
+            nextInspectionTime = now.plusMillis(cooldownMillis);
+            return true;
+        }
+        nextInspectionTime = now.plusMillis(cooldownMillis);
+        return false;
     }
 
 }

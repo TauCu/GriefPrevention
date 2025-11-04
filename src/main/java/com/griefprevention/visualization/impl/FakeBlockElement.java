@@ -1,8 +1,7 @@
 package com.griefprevention.visualization.impl;
 
-import com.griefprevention.visualization.BlockElement;
 import com.griefprevention.util.IntVector;
-import org.bukkit.World;
+import com.griefprevention.visualization.BlockElement;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -17,17 +16,18 @@ final class FakeBlockElement extends BlockElement
     private final @NotNull BlockData visualizedBlock;
 
     FakeBlockElement(
+            @NotNull Player player,
             @NotNull IntVector intVector,
             @NotNull BlockData realBlock,
             @NotNull BlockData visualizedBlock)
     {
-        super(intVector);
+        super(player, intVector);
         this.realBlock = realBlock;
         this.visualizedBlock = visualizedBlock;
     }
 
     @Override
-    protected void draw(@NotNull Player player, @NotNull World world)
+    protected void draw()
     {
         // Send the player a fake block change event only if the chunk is loaded.
         if (!getCoordinate().isChunkLoaded(world)) return;
@@ -36,7 +36,7 @@ final class FakeBlockElement extends BlockElement
     }
 
     @Override
-    protected void erase(@NotNull Player player, @NotNull World world)
+    protected void erase()
     {
         player.sendBlockChange(getCoordinate().toLocation(world), realBlock);
     }

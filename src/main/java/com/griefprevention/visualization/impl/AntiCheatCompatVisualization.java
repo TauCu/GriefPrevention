@@ -1,8 +1,8 @@
 package com.griefprevention.visualization.impl;
 
 import com.griefprevention.util.IntVector;
-import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 
@@ -17,13 +17,13 @@ public class AntiCheatCompatVisualization extends FakeBlockVisualization
     /**
      * Construct a new {@code AntiCheatCompatVisualization}.
      *
-     * @param world the {@link World} being visualized in
+     * @param player the {@link Player} to visualize for
      * @param visualizeFrom the {@link IntVector} representing the world coordinate being visualized from
      * @param height the height of the visualization
      */
-    public AntiCheatCompatVisualization(@NotNull World world, @NotNull IntVector visualizeFrom, int height)
+    public AntiCheatCompatVisualization(@NotNull Player player, @NotNull IntVector visualizeFrom, int height)
     {
-        super(world, visualizeFrom, height);
+        super(player, visualizeFrom, height);
     }
 
     @Override

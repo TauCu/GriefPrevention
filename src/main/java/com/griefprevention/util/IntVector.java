@@ -3,7 +3,6 @@ package com.griefprevention.util;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -69,14 +68,14 @@ public record IntVector(int x, int y, int z)
     }
 
     /**
-     * Get a {@link BlockVector} representing the {@code IntVector}.
+     * Get a {@link Vector} representing the {@code IntVector}.
      *
-     * @return the corresponding {@code BlockVector}
+     * @return the corresponding {@code Vector}
      */
     @Contract(" -> new")
-    public @NotNull BlockVector toVector()
+    public @NotNull Vector toVector()
     {
-        return new BlockVector(x(), y(), z());
+        return new Vector(x(), y(), z());
     }
 
     /**
@@ -106,6 +105,44 @@ public record IntVector(int x, int y, int z)
     }
 
     /**
+     * Create a new {@code IntVector} with the specified offset.
+     *
+     * @param dX the X coordinate offset
+     * @param dY the Y coordinate offset
+     * @param dZ the Z coordinate offset
+     * @return the {@code IntVector} created
+     */
+    @Contract("_, _, _ -> new")
+    public @NotNull IntVector subtract(int dX, int dY, int dZ)
+    {
+        return new IntVector(x() - dX, y() - dY, z() - dZ);
+    }
+
+    /**
+     * Create a new {@code IntVector} with the specified offset.
+     *
+     * @param other the offset {@code IntVector}
+     * @return the {@code IntVector} created
+     */
+    @Contract("_ -> new")
+    public @NotNull IntVector subtract(@NotNull IntVector other)
+    {
+        return new IntVector(x() - other.x(), y() - other.y(), z() - other.z());
+    }
+
+    public int dot(IntVector other) {
+        return x * other.x + y * other.y + z * other.z;
+    }
+
+    public IntVector cross(IntVector other) {
+        return new IntVector(
+                y * other.z - z * other.y,
+                z * other.x - x * other.z,
+                x * other.y - y * other.x
+        );
+    }
+
+    /**
      * Calculate the squared distance to another {@code IntVector}.
      *
      * @param other the other {@code IntVector}
@@ -132,7 +169,5 @@ public record IntVector(int x, int y, int z)
         // Only World#isChunkLoaded is safe without a Chunk object.
         return world.isChunkLoaded(x() >> 4, z() >> 4);
     }
-
-
 
 }

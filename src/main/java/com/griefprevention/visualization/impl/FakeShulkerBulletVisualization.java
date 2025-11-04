@@ -5,7 +5,6 @@ import com.griefprevention.visualization.Boundary;
 import com.griefprevention.visualization.EntityBlockBoundaryVisualization;
 import me.ryanhamshire.GriefPrevention.util.ScoreboardColors;
 import org.bukkit.ChatColor;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.Team;
@@ -15,12 +14,12 @@ import java.util.function.Consumer;
 
 public class FakeShulkerBulletVisualization extends EntityBlockBoundaryVisualization<FakeShulkerBulletElement> {
 
-    public FakeShulkerBulletVisualization(@NotNull World world, @NotNull IntVector visualizeFrom, int height) {
-        super(world, visualizeFrom, height);
+    public FakeShulkerBulletVisualization(@NotNull Player player, @NotNull IntVector visualizeFrom, int height) {
+        super(player, visualizeFrom, height);
     }
 
-    public FakeShulkerBulletVisualization(World world, IntVector visualizeFrom, int height, int step, int displayZoneRadius) {
-        super(world, visualizeFrom, height, step, displayZoneRadius);
+    public FakeShulkerBulletVisualization(Player player, IntVector visualizeFrom, int height, int step, int displayZoneRadius) {
+        super(player, visualizeFrom, height, step, displayZoneRadius);
     }
 
     @Override
@@ -47,20 +46,18 @@ public class FakeShulkerBulletVisualization extends EntityBlockBoundaryVisualiza
     protected @NotNull Consumer<@NotNull IntVector> addBulletElement(@NotNull Team teamColor) {
         return vector -> {
             // don't draw over existing elements in the same position
-            entityElements.putIfAbsent(vector, new FakeShulkerBulletElement(vector, teamColor));
+            entityElements.putIfAbsent(vector, new FakeShulkerBulletElement(player, vector, teamColor));
         };
     }
 
     @Override
-    public void revert(Player player) {
-        if (player != null) {
-            FakeShulkerBulletElement.eraseAllBullets(player, entityElements.values());
-        }
+    public void revert() {
+        FakeShulkerBulletElement.eraseAllBullets(player, entityElements.values());
     }
 
     @Override
-    public boolean isValidFloor(World world, int originalY, int x, int y, int z) {
-        return FakeFallingBlockVisualization.isFloor(world, originalY, x, y, z);
+    public boolean isValidFloor(int originalY, int x, int y, int z) {
+        return FakeBlockDisplayVisualization.isFloor(world, originalY, x, y, z);
     }
 
     @Override

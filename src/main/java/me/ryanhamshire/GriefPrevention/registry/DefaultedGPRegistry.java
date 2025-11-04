@@ -3,21 +3,21 @@ package me.ryanhamshire.GriefPrevention.registry;
 import java.util.Objects;
 import java.util.function.Function;
 
-public class DefaultedRegistry<T> extends Registry<T> {
+public class DefaultedGPRegistry<T> extends GPRegistry<T> {
 
     private boolean lightweightProvider;
     private Function<String, T> defaultProvider;
 
-    public DefaultedRegistry(String name) {
+    public DefaultedGPRegistry(String name) {
         this(name, (T) null);
     }
 
-    public DefaultedRegistry(String name, T defaultValue) {
+    public DefaultedGPRegistry(String name, T defaultValue) {
         super(name);
         setDefault(defaultValue);
     }
 
-    public DefaultedRegistry(String name, Function<String, T> defaultProvider) {
+    public DefaultedGPRegistry(String name, Function<String, T> defaultProvider) {
         super(name);
         setDefault(defaultProvider);
     }

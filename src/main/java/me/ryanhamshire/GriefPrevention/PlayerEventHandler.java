@@ -1532,7 +1532,7 @@ class PlayerEventHandler implements Listener
         if (playerData.getVisibleBoundaries() instanceof EntityBlockBoundaryVisualization<?> vis && event.getClickedBlock() != null) {
             FakeEntityElement element = vis.elementByLocation(event.getClickedBlock().getLocation());
             if (element != null) {
-                element.erase(player, player.getWorld());
+                element.erase();
             }
         }
 
@@ -1778,26 +1778,25 @@ class PlayerEventHandler implements Listener
                 //if claims are disabled in this world, do nothing
                 if (!instance.claimsEnabledForWorld(player.getWorld())) return;
 
-                // If investigation tool is on cooldown, do nothing.
-                if (player.getCooldown(instance.config_claims_investigationTool) > 0) return;
-                // Set investigation tool on cooldown to prevent spamming.
-                player.setCooldown(instance.config_claims_investigationTool, 1);
-
                 playerData = this.dataStore.getPlayerData(player.getUniqueId());
 
                 //if holding shift (sneaking), show all claims in area
-                if (player.isSneaking() && player.hasPermission("griefprevention.visualizenearbyclaims"))
-                {
+                if (player.isSneaking() && player.hasPermission("griefprevention.visualizenearbyclaims")) {
+                    if (!playerData.checkInspectionCooldown())
+                        return;
+
                     //find nearby claims
                     Set<Claim> claims = this.dataStore.getNearbyClaims(player.getLocation());
 
                     // alert plugins of a claim inspection, return if cancelled
                     ClaimInspectionEvent inspectionEvent = new ClaimInspectionEvent(player, null, claims, true);
                     Bukkit.getPluginManager().callEvent(inspectionEvent);
-                    if (inspectionEvent.isCancelled()) return;
+                    if (inspectionEvent.isCancelled())
+                        return;
 
                     //visualize boundaries
-                    BoundaryVisualization.visualizeNearbyClaims(player, inspectionEvent.getClaims(), player.getEyeLocation().getBlockY());
+                    playerData.updateInspectionCooldown();
+                    BoundaryVisualization.visualizeNearbyClaims(player, inspectionEvent.getClaims(), player.getLocation().getBlockY() - 1);
                     GriefPrevention.sendMessage(player, TextMode.Info, Messages.ShowNearbyClaims, String.valueOf(claims.size()));
 
                     return;
@@ -1863,11 +1862,6 @@ class PlayerEventHandler implements Listener
                 //claim case
                 else
                 {
-                    // alert plugins of a claim inspection, return if cancelled
-                    ClaimInspectionEvent inspectionEvent = new ClaimInspectionEvent(player, clickedBlock, claim);
-                    Bukkit.getPluginManager().callEvent(inspectionEvent);
-                    if (inspectionEvent.isCancelled()) return;
-
                     BoundaryVisualization currentVisualization = playerData.getVisibleBoundaries();
                     Claim finalClaim = claim;
                     if (currentVisualization != null && currentVisualization.getBoundaries().stream()
@@ -1877,10 +1871,20 @@ class PlayerEventHandler implements Listener
                         return;
                     }
 
+                    if (!playerData.checkInspectionCooldown())
+                        return;
+
+                    // alert plugins of a claim inspection, return if cancelled
+                    ClaimInspectionEvent inspectionEvent = new ClaimInspectionEvent(player, clickedBlock, claim);
+                    Bukkit.getPluginManager().callEvent(inspectionEvent);
+                    if (inspectionEvent.isCancelled())
+                        return;
+
                     playerData.lastClaim = claim;
                     GriefPrevention.sendMessage(player, TextMode.Info, locationFallback ? Messages.LocationClaimed : Messages.BlockClaimed, claim.getOwnerName());
 
                     //visualize boundary
+                    playerData.updateInspectionCooldown();
                     BoundaryVisualization.visualizeClaim(player, claim, VisualizationType.CLAIM);
 
                     if (player.hasPermission("griefprevention.seeclaimsize"))
@@ -1929,7 +1933,8 @@ class PlayerEventHandler implements Listener
             boolean miss = true;
             if (action == Action.RIGHT_CLICK_AIR) {
                 //try to find a far away non-air block along line of sight
-                Block check = raytraceForClaimOrTarget(player, 100, (block, claim) -> claim.is3D() && claim.isCorner(block));
+                boolean include2dCorners = playerData.claimResizing == null && playerData.claimSubdividing == null && instance.isClaimModificationTool(itemInHand);
+                Block check = raytraceForClaimOrTarget(player, 100, (block, claim) -> (include2dCorners || claim.is3D()) && claim.isCorner(block));
                 if (check == null) {
                     clickedBlock = player.getLocation().getBlock().getRelative(BlockFace.UP);
                 } else {
@@ -2020,6 +2025,10 @@ class PlayerEventHandler implements Listener
                         playerData.claimResizing = resizeClaim;
                         playerData.lastShovelLocation = clickedBlock.getLocation();
                         GriefPrevention.sendMessage(player, TextMode.Instr, Messages.ResizeStart);
+                        if (!playerData.isVisualizing(playerData.claimResizing)) {
+                            playerData.updateInspectionCooldown();
+                            BoundaryVisualization.visualizeClaim(player, playerData.claimResizing, VisualizationType.CLAIM);
+                        }
                     }
 
                     //if he didn't click on a corner and is in subdivision mode, he's creating a new subdivision
@@ -2037,7 +2046,7 @@ class PlayerEventHandler implements Listener
                             // can't create 2d subdivisions in 3d parent clams
                             if (playerData.shovelMode != ShovelMode.Subdivide3d && claim.is3D()) {
                                 GriefPrevention.sendMessage(player, TextMode.Err, Messages.Create2DSubdivisionFail3DClaim);
-                                BoundaryVisualization.visualizeClaim(player, claim, VisualizationType.CONFLICT_ZONE, clickedBlock);
+                                BoundaryVisualization.visualizeArea(player, claim.getBounds(), VisualizationType.CONFLICT_ZONE);
                                 return;
                             }
 
@@ -2047,6 +2056,10 @@ class PlayerEventHandler implements Listener
                                 GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SubdivisionStart);
                                 playerData.lastShovelLocation = clickedBlock.getLocation();
                                 playerData.claimSubdividing = claim;
+                                if (!playerData.isVisualizing(claim)) {
+                                    playerData.updateInspectionCooldown();
+                                    BoundaryVisualization.visualizeClaim(player, claim, VisualizationType.SUBDIVISION);
+                                }
                             }
                         }
 
@@ -2112,7 +2125,7 @@ class PlayerEventHandler implements Listener
                     else
                     {
                         GriefPrevention.sendMessage(player, TextMode.Err, Messages.CreateClaimFailOverlap);
-                        BoundaryVisualization.visualizeClaim(player, claim, VisualizationType.CLAIM, clickedBlock);
+                        BoundaryVisualization.visualizeClaim(player, claim, VisualizationType.CONFLICT_ZONE, clickedBlock);
                     }
                 }
 

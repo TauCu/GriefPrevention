@@ -18,10 +18,13 @@
 
 package me.ryanhamshire.GriefPrevention;
 
+import com.griefprevention.visualization.Boundary;
 import com.griefprevention.visualization.BoundaryVisualization;
 import com.griefprevention.visualization.VisualizationType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
+
+import java.util.Objects;
 
 //tells a player about how many claim blocks he has, etc
 //implemented as a task so that it can be delayed
@@ -31,9 +34,21 @@ class EquipShovelProcessingTask implements Runnable
     //player data
     private final Player player;
 
-    public EquipShovelProcessingTask(Player player)
-    {
+    public EquipShovelProcessingTask(Player player) {
         this.player = player;
+
+        PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
+
+        //reset any work he might have been doing
+        playerData.lastShovelLocation = null;
+        playerData.claimResizing = null;
+
+        //always reset to basic claims mode
+        if (playerData.shovelMode != ShovelMode.Basic) {
+            playerData.shovelMode = ShovelMode.Basic;
+            GriefPrevention.sendMessage(player, TextMode.Info, Messages.ShovelBasicClaimMode);
+        }
+
     }
 
     @Override
@@ -44,17 +59,6 @@ class EquipShovelProcessingTask implements Runnable
             return;
 
         PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
-
-        //reset any work he might have been doing
-        playerData.lastShovelLocation = null;
-        playerData.claimResizing = null;
-
-        //always reset to basic claims mode
-        if (playerData.shovelMode != ShovelMode.Basic)
-        {
-            playerData.shovelMode = ShovelMode.Basic;
-            GriefPrevention.sendMessage(player, TextMode.Info, Messages.ShovelBasicClaimMode);
-        }
 
         //tell him how many claim blocks he has available
         int remainingBlocks = playerData.getRemainingClaimBlocks();
@@ -70,12 +74,19 @@ class EquipShovelProcessingTask implements Runnable
             GriefPrevention.sendMessage(player, TextMode.Instr, Messages.SurvivalBasicsVideo2, DataStore.SURVIVAL_VIDEO_URL);
         }
 
-        //if standing in a claim owned by the player, visualize it
-        Claim claim = GriefPrevention.instance.dataStore.getClaimAt(player.getLocation(), false, playerData.lastClaim);
-        if (claim != null && claim.checkPermission(player, ClaimPermission.Edit, null) == null)
-        {
-            playerData.lastClaim = claim;
-            BoundaryVisualization.visualizeClaim(player, claim, VisualizationType.CLAIM);
+        // only visualize if they aren't currently modifying a claim
+        if (playerData.claimResizing == null && playerData.claimSubdividing == null) {
+            //if standing in a claim owned by the player, visualize it
+            Claim claim = GriefPrevention.instance.dataStore.getClaimAt(player.getLocation(), false, playerData.lastClaim);
+            if (claim != null && claim.checkPermission(player, ClaimPermission.Edit, null) == null) {
+                //only if that claim isn't already being visualized
+                if (playerData.getVisibleBoundaries() == null
+                        || playerData.getVisibleBoundaries().getBoundaries().stream().map(Boundary::claim).filter(Objects::nonNull).noneMatch(c -> c.equals(claim))) {
+                    playerData.lastClaim = claim;
+                    BoundaryVisualization.visualizeClaim(player, claim, VisualizationType.CLAIM);
+                }
+            }
         }
+
     }
 }

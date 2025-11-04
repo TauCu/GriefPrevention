@@ -6,10 +6,10 @@ import com.griefprevention.visualization.Boundary;
 import com.griefprevention.visualization.BoundaryVisualization;
 import org.bukkit.Material;
 import org.bukkit.Tag;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Lightable;
+import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Consumer;
@@ -26,12 +26,12 @@ public class FakeBlockVisualization extends BlockBoundaryVisualization
     /**
      * Construct a new {@code FakeBlockVisualization}.
      *
-     * @param world the {@link World} being visualized in
+     * @param player the {@link Player} to visualize for
      * @param visualizeFrom the {@link IntVector} representing the world coordinate being visualized from
      * @param height the height of the visualization
      */
-    public FakeBlockVisualization(@NotNull World world, @NotNull IntVector visualizeFrom, int height) {
-        super(world, visualizeFrom, height);
+    public FakeBlockVisualization(@NotNull Player player, @NotNull IntVector visualizeFrom, int height) {
+        super(player, visualizeFrom, height);
 
         // Water is considered transparent based on whether the visualization is initiated in water.
         waterTransparent = visualizeFrom.toBlock(world).getType() == Material.WATER;
@@ -77,12 +77,12 @@ public class FakeBlockVisualization extends BlockBoundaryVisualization
     {
         return vector -> {
             // Create an element using our fake data and the determined block's real data.
-            elements.add(new FakeBlockElement(vector, vector.toBlock(world).getBlockData(), fakeData));
+            elements.add(new FakeBlockElement(player, vector, vector.toBlock(world).getBlockData(), fakeData));
         };
     }
 
     @Override
-    public boolean isValidFloor(World world, int originalY, int x, int y, int z) {
+    public boolean isValidFloor(int originalY, int x, int y, int z) {
         if (!isTransparent(world.getBlockAt(x, y, z))) {
             return isTransparent(world.getBlockAt(x, y + 1, z)) || isTransparent(world.getBlockAt(x, y - 1, z));
         }

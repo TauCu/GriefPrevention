@@ -11,9 +11,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.logging.Level;
@@ -29,61 +27,62 @@ public abstract class BoundaryVisualization
 
     protected final Collection<Boundary> boundaries = new ArrayList<>();
     protected final Collection<Boundary> elements = boundaries;
+    protected final @NotNull Player player;
     protected final @NotNull World world;
     protected final @NotNull IntVector visualizeFrom;
     protected final int height;
 
+    protected final int worldMaxHeight;
+    protected final int worldMinHeight;
+
     /**
      * Construct a new {@code BoundaryVisualization}.
      *
-     * @param world the {@link World} being visualized in
+     * @param player the {@link Player} this visualization is for
      * @param visualizeFrom the {@link IntVector} representing the world coordinate being visualized from
      * @param height the height of the visualization
      */
-    protected BoundaryVisualization(@NotNull World world, @NotNull IntVector visualizeFrom, int height)
-    {
-        this.world = world;
+    protected BoundaryVisualization(@NotNull Player player, @NotNull IntVector visualizeFrom, int height) {
+        this.player = player;
+        this.world = player.getWorld();
         this.visualizeFrom = visualizeFrom;
         this.height = height;
+        this.worldMaxHeight = world.getMaxHeight();
+        this.worldMinHeight = world.getMinHeight();
     }
 
     /**
      * Check if a {@link Player} can visualize the {@code BoundaryVisualization}.
      *
-     * @param player the visualization target
      * @return true if able to visualize
      */
-    @Contract("null -> false")
-    protected boolean canVisualize(@Nullable Player player) {
-        return player != null && player.isOnline() && !boundaries.isEmpty() && Objects.equals(world, player.getWorld());
+    protected boolean canVisualize() {
+        return !boundaries.isEmpty() && Objects.equals(world, player.getWorld());
     }
 
     /**
      * Apply the {@code BoundaryVisualization} to a {@link Player}.
-     *
-     * @param player the visualization target
-     * @param playerData the {@link PlayerData} of the visualization target
      */
-    protected void apply(@NotNull Player player, @NotNull PlayerData playerData)
-    {
+    protected void apply() {
+        PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
+
         // Remember the visualization so it can be reverted.
         playerData.setVisibleBoundaries(this);
 
         // Apply all visualization elements.
         for (Boundary boundary : boundaries)
-            draw(player, boundary);
+            draw(boundary);
 
         // Schedule automatic reversion.
-        scheduleRevert(player, playerData);
+        scheduleRevert();
     }
 
     /**
-     * Draw a {@link Boundary} in the visualization for a {@link Player}.
+     * Draw a {@link Boundary} in the visualization.
      *
-     * @param player the visualization target
      * @param boundary the {@code Boundary} to draw
      */
-    protected abstract void draw(@NotNull Player player, @NotNull Boundary boundary);
+    protected abstract void draw(@NotNull Boundary boundary);
 
     /**
      * Schedule automatic reversion of the visualization.
@@ -91,11 +90,9 @@ public abstract class BoundaryVisualization
      * <p>Some implementations may automatically revert without additional help and may wish to override this method to
      * prevent extra task scheduling.</p>
      *
-     * @param player the visualization target
-     * @param playerData the {@link PlayerData} of the visualization target
      */
-    protected void scheduleRevert(@NotNull Player player, @NotNull PlayerData playerData)
-    {
+    protected void scheduleRevert() {
+        PlayerData playerData = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
         GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(
                 GriefPrevention.instance,
                 () -> {
@@ -112,31 +109,92 @@ public abstract class BoundaryVisualization
     }
 
     /**
-     * Revert the visualization for a {@link Player}.
-     *
-     * @param player the visualization target
+     * Revert the visualization
      */
-    public void revert(@Nullable Player player)
-    {
+    public void revert() {
         // If the player cannot visualize the blocks, they should already be effectively reverted.
-        if (!canVisualize(player))
-        {
+        if (!canVisualize()) {
             return;
         }
 
-        PlayerData data = GriefPrevention.instance.dataStore.getPlayerData(player.getUniqueId());
-
         // Revert data as necessary for any sent elements.
-        for (Boundary boundary : boundaries) erase(player, boundary);
+        for (Boundary boundary : boundaries)
+            erase(boundary);
     }
 
     /**
-     * Erase a {@link Boundary} in the visualization for a {@link Player}.
+     * Erase a {@link Boundary} in the visualization.
      *
-     * @param player the visualization target
      * @param boundary the {@code Boundary} to erase
      */
-    protected abstract void erase(@NotNull Player player, @NotNull Boundary boundary);
+    protected abstract void erase(@NotNull Boundary boundary);
+
+    /**
+     * Checks for a valid floor traversing up and down between y - 64 and y + 16<br>
+     * You may override this method to change the height limits used by the draw method as it calls this method.
+     * @param x the x coordinate
+     * @param y the starting y coordinate
+     * @param z the z coordinate
+     * @return the Y coordinate of the floor or y - 2 if no floor is found
+     * @see #findFloor(int, int, int, int, int, int)
+     * @see #isValidFloor(int, int, int, int)
+     */
+    public int findFloor(int x, int y, int z) {
+        return findFloor(x, y, z, Math.max(worldMinHeight, y - 80), Math.min(worldMaxHeight, y + 64), y - 2);
+    }
+
+    /**
+     * Checks for a valid floor traversing up and down within the specified limits
+     * @param x the x coordinate
+     * @param y the starting y coordinate
+     * @param z the z coordinate
+     * @param minY the minimum Y value that will be searched
+     * @param maxY the maximum Y value that will be searched
+     * @param def the default return value if no floor is found
+     * @return the Y coordinate of the floor or def if no floor is found
+     * @see #isValidFloor(int, int, int, int)
+     * @see #isValidFloor(Block)
+     */
+    public int findFloor(int x, int y, int z, int minY, int maxY, int def) {
+        // search up and down within the specified limits
+        int ly = y + 1, gy = y - 1;
+        int maxAbs = Math.max(Math.abs(minY), Math.abs(maxY));
+        for (int i = 0; i <= maxAbs; i++) {
+            if (ly > minY && isValidFloor(y, x, --ly, z))
+                return ly;
+            if (gy < maxY && isValidFloor(y, x, ++gy, z))
+                return gy;
+        }
+
+        // if no floor is found return the default value
+        return def;
+    }
+
+    /**
+     * Returns if the coordinates are considered a valid floor by the {@link #findFloor(int, int, int, int, int, int) findFloor} method<br>
+     * Override this method to define your own floor detection
+     * @param originalY the original Y coordinate of the search
+     * @param x the x coordinate
+     * @param y the y coordinate
+     * @param z the z coordinate
+     * @return true if the coordinates are considered a valid floor, false otherwise
+     * @see #isValidFloor(Block)
+     * @see #findFloor(int, int, int, int, int, int)
+     */
+    public boolean isValidFloor(int originalY, int x, int y, int z) {
+        return isValidFloor(world.getBlockAt(x, y, z));
+    }
+
+    /**
+     * Returns if the block is considered a valid floor by the {@link #findFloor(int, int, int, int, int, int) findFloor} method<br>
+     * @param block the block to check
+     * @return true if the block is considered a valid floor, false otherwise
+     * @see #isValidFloor(int, int, int, int)
+     * @see #findFloor(int, int, int, int, int, int)
+     */
+    public boolean isValidFloor(Block block) {
+        return true;
+    }
 
     /**
      * Helper method for quickly visualizing an area.
@@ -284,25 +342,24 @@ public abstract class BoundaryVisualization
             return;
         }
 
-        BoundaryVisualization visualization = event.getProvider().create(player.getWorld(), event.getCenter(), event.getHeight());
+        BoundaryVisualization visualization = event.getProvider().create(player, event.getCenter(), event.getHeight());
         visualization.boundaries.addAll(boundaries);
 
         // If they have a visualization active, clear it first.
         playerData.setVisibleBoundaries(null);
 
         // If they are online and in the same world as the visualization, display the visualization next tick.
-        if (visualization.canVisualize(player))
+        if (visualization.canVisualize())
         {
             GriefPrevention.instance.getServer().getScheduler().scheduleSyncDelayedTask(
                     GriefPrevention.instance,
-                    new DelayedVisualizationTask(visualization, playerData, event),
+                    new DelayedVisualizationTask(visualization, event),
                     1L);
         }
     }
 
     private record DelayedVisualizationTask(
             @NotNull BoundaryVisualization visualization,
-            @NotNull PlayerData playerData,
             @NotNull BoundaryVisualizationEvent event)
             implements Runnable
     {
@@ -312,7 +369,7 @@ public abstract class BoundaryVisualization
         {
             try
             {
-                visualization.apply(event.getPlayer(), playerData);
+                visualization.apply();
             }
             catch (Exception exception)
             {
@@ -338,9 +395,9 @@ public abstract class BoundaryVisualization
 
                 // Fall through to default provider.
                 BoundaryVisualization fallback = BoundaryVisualizationEvent.DEFAULT_PROVIDER
-                        .create(event.getPlayer().getWorld(), event.getCenter(), event.getHeight());
+                        .create(event.getPlayer(), event.getCenter(), event.getHeight());
                 event.getBoundaries().stream().filter(Objects::nonNull).forEach(fallback.boundaries::add);
-                fallback.apply(event.getPlayer(), playerData);
+                fallback.apply();
             }
         }
 

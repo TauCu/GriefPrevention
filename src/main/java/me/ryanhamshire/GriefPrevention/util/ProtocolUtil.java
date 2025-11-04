@@ -7,12 +7,14 @@ import com.comphenix.protocol.reflect.FuzzyReflection;
 import com.comphenix.protocol.reflect.fuzzy.FuzzyFieldContract;
 import com.comphenix.protocol.reflect.fuzzy.FuzzyMethodContract;
 import com.comphenix.protocol.utility.MinecraftReflection;
+import com.comphenix.protocol.wrappers.WrappedDataValue;
+import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.data.BlockData;
-import org.bukkit.entity.FallingBlock;
+import org.bukkit.entity.BlockDisplay;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
 import java.lang.reflect.Field;
@@ -25,23 +27,21 @@ import java.util.logging.Logger;
 
 /**
  * Basic class containing utilities to work with the minecraft protocol.
- * @author <a href="https://github.com/TauCubed">TauCubed</a>
+ * @author <a href="https://github.com/TauCu">TauCubed</a>
  */
 public class ProtocolUtil {
 
-    // reflective handles
-    // M method, F field
     private static Method m_craftBlockData_getState = null;
     private static Method m_nmsBlock_getId = null;
-
-    // direct references
     private static AtomicInteger nmsEntity_entityCounter = null;
 
     /**
      * Gets the NMS registry state ID for the given block data.
      * @param data the block data
      * @return the NMS registry state ID.
+     * @deprecated no longer used.
      */
+    @Deprecated(forRemoval = true)
     public static int getBlockStateId(BlockData data) {
         try {
             if (m_craftBlockData_getState == null || m_nmsBlock_getId == null) {
@@ -89,28 +89,38 @@ public class ProtocolUtil {
                                 .requireModifier(Modifier.FINAL)
                                 .typeDerivedOf(AtomicInteger.class)
                                 .build());
-                // it may be possible that there is more than one static final AtomicInteger in the entity class, in this unfortunate eventuality we want to make sure
-                // that we actually have the entity counter by checking if the current value == the id of an entity we just spawned
+
                 World world = Bukkit.getWorlds().get(0);
-                fieldsLoop: for (Field check : possibleFields) {
+                Location entityLoc = new Location(world, 0, world.getMinHeight() - 2, 0);
+
+                // it's possible that there is more than one static final AtomicInteger in the entity class.
+                // to make sure it's the right one, create a bunch of entities and make sure their ids == the counter's id.
+                for (Field check : possibleFields) {
                     check.setAccessible(true);
                     AtomicInteger possibleCounter = (AtomicInteger) check.get(null);
-                    // some naughty things might be creating new entity instances on different threads, thus we need to check a few times
+
+                    // some stuff might be creating new entity instances on different threads, thus check a few times
+                    int matchedTimes = 0;
                     for (int i = 0; i < 1000; i++) {
-                        FallingBlock fallingBlock = world.spawnFallingBlock(new Location(world, 0, world.getMinHeight() - 2, 0), Material.STONE.createBlockData());
-                        if (fallingBlock.getEntityId() == possibleCounter.get()) {
-                            // we've (most likely) found it!
-                            nmsEntity_entityCounter = possibleCounter;
-                            break fieldsLoop;
+                        BlockDisplay entity = world.createEntity(entityLoc, BlockDisplay.class);
+
+                        if (entity.getEntityId() == possibleCounter.get()) {
+                            matchedTimes++;
                         }
-                        fallingBlock.remove();
+                    }
+
+                    // make sure the apparent consistency is >95%
+                    if (matchedTimes > 950) {
+                        nmsEntity_entityCounter = possibleCounter;
+                        break;
                     }
                 }
-                // if the counter is still null, we didn't find it. It has likely changed between versions, perhaps now it's an AtomicLong.
-                // inm this case, we'll just make one up. It might cause conflicts but at least it should work decently.
+
+                // if we didn't find it, it has likely changed between versions, perhaps now it's an AtomicLong.
+                // in this case, we'll just make one up. It might cause conflicts, oh well.
                 if (nmsEntity_entityCounter == null) {
                     Logger.getLogger("GriefPrevention").log(Level.WARNING, "Failed to find nmsEntity_entityCounter. We'll create a fallback but it might cause id conflicts causing things such as ghost entities.");
-                    // we'll use max value, so it will flip negative and be unlikely to cause conflicts with real entities.
+                    // use max value so it will flip negative and be unlikely to cause conflicts with real entities.
                     // obviously if two plugins do this it will be a shit shoot.
                     nmsEntity_entityCounter = new AtomicInteger(Integer.MAX_VALUE);
                 }
@@ -118,8 +128,46 @@ public class ProtocolUtil {
                 throw new RuntimeException(e);
             }
         }
+
         // increment and get entity counter
         return nmsEntity_entityCounter.incrementAndGet();
+    }
+
+    /**
+     * Extracts the data from all data watchers in the given entity and returns it as a list of WrappedDataValue<br>
+     * This method also extracts and sets the serializers for each data value.
+     * @param entity the entity to extract (doesn't need to be alive or spawned)
+     * @return a list of all the data in the entity
+     */
+    public static List<WrappedDataValue> extractWatchableDataFrom(Entity entity) {
+        return WrappedDataWatcher.getEntityWatcher(entity)
+                .getWatchableObjects().stream()
+                .map(obj -> new WrappedDataValue(obj.getIndex(), obj.getWatcherObject().getSerializer(), obj.getRawValue()))
+                .toList();
+    }
+
+    /**
+     * Extracts all watchable data from the given entity and creates a ENTITY_METADATA packet containing
+     * that data, and the entityId.
+     * @param entity the entity to create the packet for
+     * @return a PacketContainer containing the entity's watchable data and the entityId.
+     */
+    public static PacketContainer createMetadataPacketFor(Entity entity) {
+        return createMetadataPacketFor(entity, entity.getEntityId());
+    }
+
+    /**
+     * Extracts all watchable data from the given entity and creates a ENTITY_METADATA packet containing
+     * that data, and the entityId.
+     * @param entity the entity to create the packet for
+     * @param entityId the entity id this packet targets
+     * @return a PacketContainer containing the entity's watchable data and the entityId.
+     */
+    public static PacketContainer createMetadataPacketFor(Entity entity, int entityId) {
+        PacketContainer entityMeta = new PacketContainer(PacketType.Play.Server.ENTITY_METADATA);
+        entityMeta.getIntegers().write(0, entityId);
+        entityMeta.getDataValueCollectionModifier().write(0, extractWatchableDataFrom(entity));
+        return entityMeta;
     }
 
     /**

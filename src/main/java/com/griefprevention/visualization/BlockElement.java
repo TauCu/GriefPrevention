@@ -6,22 +6,25 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Objects;
-
 /**
  * An element of a {@link BlockBoundaryVisualization}.
  */
 public abstract class BlockElement
 {
 
-    private final @NotNull IntVector coordinate;
+    protected final @NotNull Player player;
+    protected final @NotNull World world;
+    protected final @NotNull IntVector coordinate;
 
     /**
      * Construct a new {@code BlockElement} with the given coordinate.
      *
+     * @param player the {@code Player} visualizing the element
      * @param coordinate the in-world coordinate of the element
      */
-    public BlockElement(@NotNull IntVector coordinate) {
+    public BlockElement(@NotNull Player player, @NotNull IntVector coordinate) {
+        this.player = player;
+        this.world = player.getWorld();
         this.coordinate = coordinate;
     }
 
@@ -35,35 +38,35 @@ public abstract class BlockElement
         return coordinate;
     }
 
-    /**
-     * Display the element for a {@link Player} in a particular {@link World}.
-     *
-     * @param player the {@code Player} visualizing the element
-     * @param world the {@code World} the element is displayed in
-     */
-    protected abstract void draw(@NotNull Player player, @NotNull World world);
+    public @NotNull Player getPlayer() {
+        return player;
+    }
 
     /**
-     * Stop the display of the element for a {@link Player} in a particular {@link World}.
-     *
-     * @param player the {@code Player} visualizing the element
-     * @param world the {@code World} the element is displayed in
+     * Display the element
      */
-    protected abstract void erase(@NotNull Player player, @NotNull World world);
+    protected abstract void draw();
+
+    /**
+     * Stop the display of the element
+     */
+    protected abstract void erase();
 
     @Override
-    public boolean equals(@Nullable Object other)
-    {
-        if (this == other) return true;
-        if (other == null || !getClass().isAssignableFrom(other.getClass())) return false;
+    public boolean equals(@Nullable Object other) {
+        if (this == other)
+            return true;
+        if (other == null || !getClass().equals(other.getClass()))
+            return false;
         BlockElement that = (BlockElement) other;
-        return coordinate.equals(that.coordinate);
+        return player.equals(that.player) && coordinate.equals(that.coordinate);
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(coordinate);
+    public int hashCode() {
+        int result = player.hashCode();
+        result = 31 * result + coordinate.hashCode();
+        return result;
     }
 
 }

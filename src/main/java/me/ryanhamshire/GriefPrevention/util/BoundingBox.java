@@ -313,6 +313,16 @@ public class BoundingBox implements Cloneable
     }
 
     /**
+     * Gets the minimum corner's coordinates as a vector.
+     *
+     * @return the minimum corner as a vector
+     */
+    public @NotNull IntVector getMinInt()
+    {
+        return new IntVector(this.minX, this.minY, this.minZ);
+    }
+
+    /**
      * Gets the maximum X coordinate of the bounding box.
      *
      * @return the maximum X value
@@ -350,6 +360,16 @@ public class BoundingBox implements Cloneable
     public @NotNull Vector getMax()
     {
         return new Vector(this.maxX, this.maxY, this.maxZ);
+    }
+
+    /**
+     * Gets the maximum corner's coordinates as a vector.
+     *
+     * @return the maximum corner as a vector
+     */
+    public @NotNull IntVector getMaxInt()
+    {
+        return new IntVector(this.maxX, this.maxY, this.maxZ);
     }
 
     /**

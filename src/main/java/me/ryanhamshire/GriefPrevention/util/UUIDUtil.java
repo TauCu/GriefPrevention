@@ -1,9 +1,20 @@
 package me.ryanhamshire.GriefPrevention.util;
 
+import org.bukkit.Bukkit;
+
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class UUIDUtil {
+
+    private static final Random MAIN_RANDOM = new Random();
+
+    public static UUID fastRandomUUID() {
+        if (Bukkit.isPrimaryThread())
+            return fastRandomUUID(MAIN_RANDOM);
+        return fastRandomUUID(ThreadLocalRandom.current());
+    }
 
     public static UUID fastRandomUUID(Random random) {
         byte[] randomBytes = new byte[16];

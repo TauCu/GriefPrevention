@@ -24,7 +24,7 @@ public class PacketListeners {
                 if (data.getVisibleBoundaries() instanceof EntityBlockBoundaryVisualization<?> vis) {
                     FakeEntityElement element = vis.elementByEID(event.getPacket().getIntegers().read(0));
                     if (element != null) {
-                        element.erase(event.getPlayer(), vis.getWorld());
+                        element.erase();
                         event.setCancelled(true);
                     }
                 }

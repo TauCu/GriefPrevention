@@ -31,7 +31,7 @@ import me.ryanhamshire.GriefPrevention.DataStore.NoTransferException;
 import me.ryanhamshire.GriefPrevention.events.SaveTrappedPlayerEvent;
 import me.ryanhamshire.GriefPrevention.events.TrustChangedEvent;
 import me.ryanhamshire.GriefPrevention.listeners.PacketListeners;
-import me.ryanhamshire.GriefPrevention.registry.Registries;
+import me.ryanhamshire.GriefPrevention.registry.GPRegistries;
 import me.ryanhamshire.GriefPrevention.util.BoundingBox;
 import me.ryanhamshire.GriefPrevention.util.SafeTeleports;
 import org.bukkit.*;
@@ -194,7 +194,7 @@ public class GriefPrevention extends JavaPlugin
     public boolean config_signNotifications;                        //whether sign content will broadcast to administrators in game
     public ArrayList<String> config_eavesdrop_whisperCommands;        //list of whisper commands to eavesdrop on
 
-    public String config_desired_visualization_provider = VisualizationProviders.FAKE_FALLING_BLOCK.getKey();
+    public String config_desired_visualization_provider = VisualizationProviders.FAKE_BLOCK_DISPLAY_LINE.getKey();
     public String config_visualization_provider; // use this one, the above is from the configuration and may not be available
 
     public boolean config_smartBan;                                    //whether to ban accounts which very likely owned by a banned player
@@ -282,7 +282,7 @@ public class GriefPrevention extends JavaPlugin
         support_protocollib_enabled = Bukkit.getPluginManager().isPluginEnabled("ProtocolLib");
 
         // touch registries to init
-        Registries.VISUALIZATION_PROVIDERS.getName();
+        GPRegistries.VISUALIZATION_PROVIDERS.getName();
 
         this.loadConfig();
 
@@ -641,16 +641,18 @@ public class GriefPrevention extends JavaPlugin
         whisperCommandsToMonitor = config.getString("GriefPrevention.Spam.WhisperSlashCommands", whisperCommandsToMonitor);
 
         // setup visualizations
-        this.config_desired_visualization_provider = config.getString("GriefPrevention.VisualizationProvider", VisualizationProviders.FAKE_FALLING_BLOCK.getKey());
+        this.config_desired_visualization_provider = config.getString("GriefPrevention.VisualizationProvider", VisualizationProviders.FAKE_BLOCK_DISPLAY_LINE.getKey());
         this.config_visualization_provider = config_desired_visualization_provider;
 
-        if (!Registries.VISUALIZATION_PROVIDERS.isRegistered(config_desired_visualization_provider)) {
-            String def = support_protocollib_enabled ? VisualizationProviders.FAKE_FALLING_BLOCK.getKey() : VisualizationProviders.FAKE_BLOCK.getKey();
+        if (!GPRegistries.VISUALIZATION_PROVIDERS.isRegistered(config_desired_visualization_provider)) {
+            String def = support_protocollib_enabled ? VisualizationProviders.FAKE_BLOCK_DISPLAY_LINE.getKey() : VisualizationProviders.FAKE_BLOCK.getKey();
             log.warning("Could not find visualization provider \"%s\" defaulting to \"%s\"".formatted(config_desired_visualization_provider, def));
             this.config_visualization_provider = def;
         }
 
-        if (!support_protocollib_enabled && (config_desired_visualization_provider.equals(VisualizationProviders.FAKE_FALLING_BLOCK.getKey()) || config_desired_visualization_provider.equals(VisualizationProviders.FAKE_SHULKER_BULLET.getKey()))) {
+        if (!support_protocollib_enabled && (config_desired_visualization_provider.equals(VisualizationProviders.FAKE_BLOCK_DISPLAY.getKey())
+                || config_desired_visualization_provider.equals(VisualizationProviders.FAKE_SHULKER_BULLET.getKey())
+                || config_desired_visualization_provider.equals(VisualizationProviders.FAKE_BLOCK_DISPLAY_LINE.getKey()))) {
             log.warning("Could not enable " + config_desired_visualization_provider + " visualization as the ProtocolLib plugin is missing.");
             this.config_visualization_provider = VisualizationProviders.FAKE_BLOCK.getKey();
         }
@@ -1612,8 +1614,8 @@ public class GriefPrevention extends JavaPlugin
                 if (ownerId != null) sb.append("  Owner UUID: %s\n".formatted(ownerId));
                 sb.append("  Owner Name: %s\n".formatted(ownerId == null ? "<Administrator>" : lookupPlayerName(ownerId)));
                 sb.append("  World: %s\n".formatted(claim.getWorld().getName()));
-                sb.append("  Lesser Corner: X=%d, Y=%d, Z=%d\n".formatted(lesser.getBlockX(), lesser.getBlockY(), lesser.getBlockZ()));
-                sb.append("  Greater Corner: X=%d, Y=%d, Z=%d\n".formatted(greater.getBlockX(), greater.getBlockY(), greater.getBlockZ()));
+                sb.append("  Lesser Corner: [%d %d %d]\n".formatted(lesser.getBlockX(), lesser.getBlockY(), lesser.getBlockZ()));
+                sb.append("  Greater Corner: [%d %d %d]\n".formatted(greater.getBlockX(), greater.getBlockY(), greater.getBlockZ()));
                 sb.append("  Dimensions: %d%sx%d (Claim Blocks: %s)\n"
                         .formatted(claim.getBounds().getWidth(), claim.is3D() ? "x" + claim.getBounds().getHeight() : "", claim.getBounds().getLength(), claimBlocksFormat.format(claim.getArea())));
                 sb.append("  Claim Explosions: %b\n".formatted(claim.areExplosivesAllowed));
@@ -1628,8 +1630,8 @@ public class GriefPrevention extends JavaPlugin
                             lesser = child.getLesserBoundaryCorner();
                             greater = child.getGreaterBoundaryCorner();
                             sb.append("\n    ID: %d\n".formatted(child.id));
-                            sb.append("      Lesser Corner: X=%d, Y=%d, Z=%d\n".formatted(lesser.getBlockX(), lesser.getBlockY(), lesser.getBlockZ()));
-                            sb.append("      Greater Corner: X=%d, Y=%d, Z=%d\n".formatted(greater.getBlockX(), greater.getBlockY(), greater.getBlockZ()));
+                            sb.append("      Lesser Corner: [%d %d %d]\n".formatted(lesser.getBlockX(), lesser.getBlockY(), lesser.getBlockZ()));
+                            sb.append("      Greater Corner: [%d %d %d]\n".formatted(greater.getBlockX(), greater.getBlockY(), greater.getBlockZ()));
                             sb.append("      Dimensions: %d%sx%d\n".formatted(claim.getBounds().getWidth(), claim.is3D() ? "x" + claim.getBounds().getHeight() : "", claim.getBounds().getLength()));
                             sb.append("      Claim Explosions: %b\n".formatted(child.areExplosivesAllowed));
                             sb.append("      Restricted: %b".formatted(child.getSubclaimRestrictions()));
@@ -3040,7 +3042,8 @@ public class GriefPrevention extends JavaPlugin
             PlayerData playerData = this.dataStore.getPlayerData(playerID);
             try {
                 BoundaryVisualization visualization = playerData.getVisibleBoundaries();
-                if (visualization != null) visualization.revert(player);
+                if (visualization != null)
+                    visualization.revert();
             } catch (Exception e) {
                 log.log(Level.WARNING, "Error while removing visualization for %s".formatted(player.getName()), e);
             }

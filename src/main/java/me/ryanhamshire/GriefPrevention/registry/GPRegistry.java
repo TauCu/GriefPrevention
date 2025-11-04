@@ -5,12 +5,12 @@ import java.util.HashMap;
 import java.util.Objects;
 import java.util.Set;
 
-public class Registry<T> {
+public class GPRegistry<T> {
 
     private final String name;
     private final HashMap<String, T> map = new HashMap<>();
 
-    public Registry(String name) {
+    public GPRegistry(String name) {
         Objects.requireNonNull(name, "Registry name cannot be null");
         this.name = name;
     }
