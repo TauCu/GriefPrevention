@@ -1100,7 +1100,7 @@ public abstract class DataStore
      */
     private int sanitizeClaimDepth(World world, int requestedDepth) {
         requestedDepth = Math.max(requestedDepth, world.getMinHeight());
-        requestedDepth = Math.max(requestedDepth, GriefPrevention.instance.config_claims_maxDepth);
+        requestedDepth = Math.max(requestedDepth, GriefPrevention.instance.config_claims_minY);
         return requestedDepth;
     }
 

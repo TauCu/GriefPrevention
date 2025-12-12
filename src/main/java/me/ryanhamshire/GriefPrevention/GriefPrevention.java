@@ -23,6 +23,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.griefprevention.commands.ClaimCommand;
 import com.griefprevention.metrics.MetricsHandler;
+import com.griefprevention.protection.InteractionProtectionHandler;
 import com.griefprevention.protection.ProtectionHelper;
 import com.griefprevention.visualization.BoundaryVisualization;
 import com.griefprevention.visualization.VisualizationProviders;
@@ -127,7 +128,7 @@ public class GriefPrevention extends JavaPlugin
     public double config_claims_abandonReturnRatio;                 //the portion of claim blocks returned to a player when a claim is abandoned
     public int config_claims_blocksAccruedPerHour_default;            //how many additional blocks players get each hour of play (can be zero) without any special permissions
     public int config_claims_maxAccruedBlocks_default;                //the limit on accrued blocks (over time) for players without any special permissions.  doesn't limit purchased or admin-gifted blocks
-    public int config_claims_maxDepth;                                //limit on how deep claims can go
+    public int config_claims_minY;                                  //minimum Y coordinate claims can reach
     public int config_claims_expirationDays;                        //how many days of inactivity before a player loses his claims
     public int config_claims_expirationExemptionTotalBlocks;        //total claim blocks amount which will exempt a player from claim expiration
     public int config_claims_expirationExemptionBonusBlocks;        //bonus claim blocks amount which will exempt a player from claim expiration
@@ -213,6 +214,7 @@ public class GriefPrevention extends JavaPlugin
     public boolean config_silenceBans;                              //whether to remove quit messages on banned players
 
     public HashMap<String, Integer> config_seaLevelOverride;        //override for sea level, because bukkit doesn't report the right value for all situations
+    public HashMap<String, Integer> config_claims_minYOverride;     //per-world override for minimum Y coordinate
 
     public boolean config_limitTreeGrowth;                          //whether trees should be prevented from growing into a claim from outside
     public PistonMode config_pistonMovement;                            //Setting for piston check options
@@ -384,6 +386,9 @@ public class GriefPrevention extends JavaPlugin
         //combat/damage-specific entity events
         entityDamageHandler = new EntityDamageHandler(this.dataStore, this);
         pluginManager.registerEvents(entityDamageHandler, this);
+
+        //special interaction-related events
+        pluginManager.registerEvents(new InteractionProtectionHandler(), this);
 
         //packet listeners
         if (support_protocollib_enabled) {
@@ -573,13 +578,47 @@ public class GriefPrevention extends JavaPlugin
         this.config_claims_claimsExtendIntoGroundDistance = Math.abs(config.getInt("GriefPrevention.Claims.ExtendIntoGroundDistance", 5));
         this.config_claims_minWidth = config.getInt("GriefPrevention.Claims.MinimumWidth", 5);
         this.config_claims_minArea = config.getInt("GriefPrevention.Claims.MinimumArea", 100);
-        this.config_claims_maxDepth = config.getInt("GriefPrevention.Claims.MaximumDepth", Integer.MIN_VALUE);
-        if (configVersion < 1 && this.config_claims_maxDepth == 0)
+
+        this.config_claims_minY = config.getInt("GriefPrevention.Claims.MinimumY", Integer.MIN_VALUE);
+        // Warn if MinimumY is set above sea level, as this is likely unintended
+        if (this.config_claims_minY != Integer.MIN_VALUE)
         {
-            // If MaximumDepth is untouched in an older configuration, correct it.
-            this.config_claims_maxDepth = Integer.MIN_VALUE;
-            AddLogEntry("Updated default value for GriefPrevention.Claims.MaximumDepth to " + Integer.MIN_VALUE);
+            for (World world : worlds)
+            {
+                // Only check worlds where claims are enabled
+                if (!this.claimsEnabledForWorld(world)) continue;
+
+                int minY = this.config_claims_minY;
+                int seaLevel = this.getSeaLevel(world);
+                if (minY > seaLevel)
+                {
+                    getLogger().warning(
+                            "MinimumY (" + minY + ") is set above sea level (" + seaLevel + ") " +
+                                    "for world '" + world.getName() + "'. This prevents claims extending below Y=" +
+                                    minY + ", which may not have been intended.");
+                    break; // Show warning once only - minY is a global setting
+                }
+            }
         }
+
+        //minimum Y per world
+        this.config_claims_minYOverride = new HashMap<>();
+        for (World world : worlds)
+        {
+            String configPath = "GriefPrevention.Claims.MinimumYOverrides." + world.getName();
+            if (config.contains(configPath))
+            {
+                int minYOverride = config.getInt(configPath);
+                outConfig.set(configPath, minYOverride);
+                this.config_claims_minYOverride.put(world.getName(), minYOverride);
+            }
+            else
+            {
+                // Don't write default values to config - absence means "use global setting"
+                outConfig.set(configPath, null);
+            }
+        }
+
         this.config_claims_chestClaimExpirationDays = config.getInt("GriefPrevention.Claims.Expiration.ChestClaimDays", 7);
         this.config_claims_expirationDays = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.DaysInactive", 60);
         this.config_claims_expirationExemptionTotalBlocks = config.getInt("GriefPrevention.Claims.Expiration.AllClaims.ExceptWhenOwnerHasTotalClaimBlocks", 10000);
@@ -757,7 +796,7 @@ public class GriefPrevention extends JavaPlugin
         outConfig.set("GriefPrevention.Claims.ExtendIntoGroundDistance", this.config_claims_claimsExtendIntoGroundDistance);
         outConfig.set("GriefPrevention.Claims.MinimumWidth", this.config_claims_minWidth);
         outConfig.set("GriefPrevention.Claims.MinimumArea", this.config_claims_minArea);
-        outConfig.set("GriefPrevention.Claims.MaximumDepth", this.config_claims_maxDepth);
+        outConfig.set("GriefPrevention.Claims.MinimumY", this.config_claims_minY);
         outConfig.set("GriefPrevention.Claims.InvestigationTool", this.config_claims_investigationTool.name());
         outConfig.set("GriefPrevention.Claims.ModificationTool", this.config_claims_modificationTool.name());
         outConfig.set("GriefPrevention.Claims.Expiration.ChestClaimDays", this.config_claims_chestClaimExpirationDays);
@@ -3397,6 +3436,11 @@ public class GriefPrevention extends JavaPlugin
         {
             return overrideValue;
         }
+    }
+
+    public int getMinY(World world)
+    {
+        return this.config_claims_minYOverride.getOrDefault(world.getName(), this.config_claims_minY);
     }
 
     public boolean containsBlockedIP(String message)
