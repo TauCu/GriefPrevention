@@ -32,6 +32,20 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Waterlogged;
+import org.bukkit.entity.AbstractHorse;
+import org.bukkit.entity.Animals;
+import org.bukkit.entity.CopperGolem;
+import org.bukkit.entity.Creature;
+import org.bukkit.entity.Donkey;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Fish;
+import org.bukkit.entity.Hanging;
+import org.bukkit.entity.Llama;
+import org.bukkit.entity.Mule;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Tameable;
+import org.bukkit.entity.Vehicle;
 import org.bukkit.entity.*;
 import org.bukkit.entity.minecart.PoweredMinecart;
 import org.bukkit.entity.minecart.StorageMinecart;
@@ -1127,14 +1141,18 @@ class PlayerEventHandler implements Listener
         //always allow interactions when player is in ignore claims mode
         if (playerData.ignoreClaims) return;
 
-        //don't allow container access during pvp combat
+        //don't allow container access during pvp combat in claimed areas
         if ((entity instanceof StorageMinecart || entity instanceof PoweredMinecart))
         {
             if (playerData.inPvpCombat())
             {
-                GriefPrevention.sendMessage(player, TextMode.Err, Messages.PvPNoContainers);
-                event.setCancelled(true);
-                return;
+                Claim claim = this.dataStore.getClaimAt(entity.getLocation(), false, playerData.lastClaim);
+                if (claim != null)
+                {
+                    GriefPrevention.sendMessage(player, TextMode.Err, Messages.PvPNoContainers);
+                    event.setCancelled(true);
+                    return;
+                }
             }
         }
 
@@ -1148,7 +1166,7 @@ class PlayerEventHandler implements Listener
                 //for storage entities, apply container rules (this is a potential theft)
                 if (entity instanceof InventoryHolder)
                 {
-                    Supplier<String> noContainersReason = claim.checkPermission(player, ClaimPermission.Inventory, event);
+                    Supplier<String> noContainersReason = claim.checkPermission(player, ClaimPermission.Container, event);
                     if (noContainersReason != null)
                     {
                         GriefPrevention.sendMessage(player, TextMode.Err, noContainersReason.get());
@@ -1160,7 +1178,7 @@ class PlayerEventHandler implements Listener
         }
 
         //if the entity is an animal, apply container rules
-        if ((instance.config_claims_preventTheft && (entity instanceof Animals || entity instanceof Fish)) || (entity.getType() == EntityType.VILLAGER && instance.config_claims_villagerTradingRequiresTrust))
+        if ((instance.config_claims_preventTheft && (entity instanceof Animals || entity instanceof Fish || entity instanceof CopperGolem)) || (entity.getType() == EntityType.VILLAGER && instance.config_claims_villagerTradingRequiresTrust))
         {
             //if the entity is in a claim
             Claim claim = this.dataStore.getClaimAt(entity.getLocation(), false, null);
@@ -1174,7 +1192,7 @@ class PlayerEventHandler implements Listener
 
                     return message;
                 };
-                final Supplier<String> noContainersReason = claim.checkPermission(player, ClaimPermission.Inventory, event, override);
+                final Supplier<String> noContainersReason = claim.checkPermission(player, ClaimPermission.Container, event, override);
                 if (noContainersReason != null)
                 {
                     GriefPrevention.sendMessage(player, TextMode.Err, noContainersReason.get());
@@ -1192,7 +1210,7 @@ class PlayerEventHandler implements Listener
             Claim claim = this.dataStore.getClaimAt(entity.getLocation(), false, playerData.lastClaim);
             if (claim != null)
             {
-                Supplier<String> failureReason = claim.checkPermission(player, ClaimPermission.Inventory, event);
+                Supplier<String> failureReason = claim.checkPermission(player, ClaimPermission.Container, event);
                 if (failureReason != null)
                 {
                     event.setCancelled(true);
@@ -1223,7 +1241,7 @@ class PlayerEventHandler implements Listener
             };
 
             // Check for permission to access containers.
-            Supplier<String> noContainersReason = claim.checkPermission(player, ClaimPermission.Inventory, event, override);
+            Supplier<String> noContainersReason = claim.checkPermission(player, ClaimPermission.Container, event, override);
 
             // If player has permission, action is allowed.
             if (noContainersReason == null) return;
@@ -1245,7 +1263,7 @@ class PlayerEventHandler implements Listener
         //allow throw egg if player is in ignore claims mode
         if (playerData.ignoreClaims || claim == null) return;
 
-        Supplier<String> failureReason = claim.checkPermission(player, ClaimPermission.Inventory, event);
+        Supplier<String> failureReason = claim.checkPermission(player, ClaimPermission.Container, event);
         if (failureReason != null)
         {
             String reason = failureReason.get();
@@ -1283,7 +1301,7 @@ class PlayerEventHandler implements Listener
             if (claim != null)
             {
                 //if no permission, cancel
-                Supplier<String> errorMessage = claim.checkPermission(player, ClaimPermission.Inventory, event);
+                Supplier<String> errorMessage = claim.checkPermission(player, ClaimPermission.Container, event);
                 if (errorMessage != null)
                 {
                     event.setCancelled(true);
@@ -1573,21 +1591,22 @@ class PlayerEventHandler implements Listener
         {
             if (playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
 
-            //block container use during pvp combat, same reason
-            if (playerData.inPvpCombat())
+            //check if player is in a claim for pvp and permission checks below
+            Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
+
+            //block container use during pvp combat in claimed areas, same reason as above, so players
+            //can't hide items from attackers
+            if (playerData.inPvpCombat() && claim != null)
             {
                 GriefPrevention.sendMessage(player, TextMode.Err, Messages.PvPNoContainers);
                 event.setCancelled(true);
                 return;
             }
-
-            //otherwise check permissions for the claim the player is in
-            Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
             if (claim != null)
             {
                 playerData.lastClaim = claim;
 
-                Supplier<String> noContainersReason = claim.checkPermission(player, ClaimPermission.Inventory, event);
+                Supplier<String> noContainersReason = claim.checkPermission(player, ClaimPermission.Container, event);
                 if (noContainersReason != null)
                 {
                     event.setCancelled(true);
@@ -1682,7 +1701,8 @@ class PlayerEventHandler implements Listener
                                 clickedBlockType == Material.COMPARATOR ||
                                 clickedBlockType == Material.REDSTONE_WIRE ||
                                 Tag.FLOWER_POTS.isTagged(clickedBlockType) ||
-                                Tag.CANDLES.isTagged(clickedBlockType)
+                                Tag.CANDLES.isTagged(clickedBlockType) ||
+                                Tag.COPPER_GOLEM_STATUES.isTagged(clickedBlockType)
                 ))
         {
             if (playerData == null) playerData = this.dataStore.getPlayerData(player.getUniqueId());
@@ -1737,7 +1757,7 @@ class PlayerEventHandler implements Listener
                 Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
                 if (claim != null)
                 {
-                    Supplier<String> reason = claim.checkPermission(player, ClaimPermission.Inventory, event);
+                    Supplier<String> reason = claim.checkPermission(player, ClaimPermission.Container, event);
                     if (reason != null)
                     {
                         GriefPrevention.sendMessage(player, TextMode.Err, reason.get());
@@ -1761,7 +1781,7 @@ class PlayerEventHandler implements Listener
                 Claim claim = this.dataStore.getClaimAt(clickedBlock.getLocation(), false, playerData.lastClaim);
                 if (claim != null)
                 {
-                    Supplier<String> reason = claim.checkPermission(player, ClaimPermission.Inventory, event);
+                    Supplier<String> reason = claim.checkPermission(player, ClaimPermission.Container, event);
                     if (reason != null)
                     {
                         GriefPrevention.sendMessage(player, TextMode.Err, reason.get());
@@ -2292,7 +2312,7 @@ class PlayerEventHandler implements Listener
         if (claim != null)
         {
             playerData.lastClaim = claim;
-            Supplier<String> noContainerReason = claim.checkPermission(player, ClaimPermission.Inventory, event);
+            Supplier<String> noContainerReason = claim.checkPermission(player, ClaimPermission.Container, event);
             if (noContainerReason != null)
             {
                 event.setCancelled(true);
