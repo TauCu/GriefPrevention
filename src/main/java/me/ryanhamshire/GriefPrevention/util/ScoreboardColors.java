@@ -5,7 +5,6 @@ import org.bukkit.ChatColor;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 
-import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
@@ -52,7 +51,7 @@ public class ScoreboardColors {
      * @param color the color
      * @return the team name or null if the ChatColor is not a color (ie: a format)
      */
-    public static @Nullable String teamNameFor(ChatColor color) {
+    public static String teamNameFor(ChatColor color) {
         return COLOR_TEAM_NAMES.get(color);
     }
 

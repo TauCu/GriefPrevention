@@ -13,6 +13,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
+import org.joml.Matrix3f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -59,7 +60,9 @@ public class FakeBlockDisplayElement extends FakeEntityElement {
         entity.setBrightness(new Display.Brightness(15, 15));
 
         // are we drawing a point or a line?
-        if (fromVec.equals(toVec)) {
+        Vector dir = toVec.clone().subtract(fromVec);
+        double length = dir.length();
+        if (length < 0.00001) {
             entity.setTransformation(new Transformation(
                     new Vector3f(-scale / 2, -scale / 2, -scale / 2),
                     new Quaternionf(),
@@ -67,20 +70,18 @@ public class FakeBlockDisplayElement extends FakeEntityElement {
                     new Quaternionf()
             ));
         } else {
-            Vector dir = toVec.clone().subtract(fromVec);
-            double length = dir.length();
-            Vector dirNorm = dir.clone().multiply(1 / length);
+            Vector3f forward = dir.clone().multiply(1.0 / length).toVector3f();
 
-            Vector3f forward = new Vector3f(0, 0, 1);
-            Quaternionf rotation = new Quaternionf().rotateTo(forward, dirNorm.toVector3f());
-
-            // correct the roll introduced by rotateTo
-            Vector3f upAfter = new Vector3f(0, 1, 0).rotate(rotation);
-            float roll = (float) Math.atan2(
-                    upAfter.dot(new Vector3f(1, 0, 0)),
-                    upAfter.dot(new Vector3f(0, 1, 0))
+            boolean isVertical = Math.abs(forward.x) < 0.000001 && Math.abs(forward.z) < 0.000001;
+            Vector3f right = new Vector3f(0, isVertical ? 0 : 1, isVertical ? 1 : 0)
+                    .cross(forward).normalize();
+            Vector3f up = new Vector3f(forward).cross(right);
+            Matrix3f basis = new Matrix3f(
+                    right.x, right.y, right.z,
+                    up.x, up.y, up.z,
+                    forward.x, forward.y, forward.z
             );
-            rotation.rotateAxis(-roll, forward);
+            Quaternionf rotation = new Quaternionf().setFromNormalized(basis);
 
             entity.setTransformation(new Transformation(
                     new Vector3f(-scale / 2, -scale / 2, -scale / 2).rotate(rotation),
