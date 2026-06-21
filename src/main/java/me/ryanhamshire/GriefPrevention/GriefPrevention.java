@@ -2439,7 +2439,7 @@ public class GriefPrevention extends JavaPlugin
             }
 
             //rescue destination may be set by GPFlags or other plugin, ask to find out
-            SaveTrappedPlayerEvent event = new SaveTrappedPlayerEvent(claim);
+            SaveTrappedPlayerEvent event = new SaveTrappedPlayerEvent(player, claim);
             Bukkit.getPluginManager().callEvent(event);
 
             //if the player is in an administrative claim and AllowTrappedInAdminClaims is false, he should contact an admin
