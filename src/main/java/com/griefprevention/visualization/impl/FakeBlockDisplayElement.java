@@ -106,10 +106,14 @@ public class FakeBlockDisplayElement extends FakeEntityElement {
         addEntity.getEntityTypeModifier().write(0, EntityType.BLOCK_DISPLAY);
         addEntity.getIntegers().write(0, entityId);
         addEntity.getUUIDs().write(0, entityUid);
+        // position
         addEntity.getDoubles()
                 .write(0, fromVec.getX())
                 .write(1, fromVec.getY())
                 .write(2, fromVec.getZ());
+        // velocity
+        addEntity.getVectors()
+                .write(0, new Vector());
 
         // create metadata packet from entity
         PacketContainer metadataPacket = ProtocolUtil.createMetadataPacketFor(entity);
